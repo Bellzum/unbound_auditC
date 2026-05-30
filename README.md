@@ -149,6 +149,12 @@ Speak text via MiniMax TTS
 
 ***
 
+## Presentation
+
+<https://canva.link/mz5ab3km2yetmk8>
+
+***
+
 ## License
 
 MIT — Built at TRAE SOLO Hackathon 2026
