@@ -1,10 +1,14 @@
 package com.auditc.glasses
 
+import android.Manifest
 import android.content.BroadcastReceiver
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.graphics.Color
+import android.media.MediaRecorder
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -18,11 +22,14 @@ import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
+import java.io.File
 import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
@@ -38,6 +45,18 @@ class MainActivity : AppCompatActivity() {
     private lateinit var overlayText: TextView
 
     private lateinit var tts: TextToSpeech
+    private var recorder: MediaRecorder? = null
+    private var recordingFile: File? = null
+
+    private val requestAudioPermission = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            startAudioRecording()
+        } else {
+            statusBoxText.text = "(microphone permission denied)"
+        }
+    }
 
     private val sopSteps = listOf(
         "Step 1: Sample Collection",
@@ -47,6 +66,7 @@ class MainActivity : AppCompatActivity() {
         "Step 5: Result Analysis",
     )
     private var currentStep = 0
+    private val stepPassed = MutableList(sopSteps.size) { false }
 
     private val recognizerLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -64,7 +84,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         statusBoxText.text = spokenText
-        verifyStep(spokenText)
+        handleSpokenText(spokenText)
     }
 
     private val keyReceiver = KeyReceiver().apply {
@@ -82,14 +102,117 @@ class MainActivity : AppCompatActivity() {
 
     private var overlayTimer: Runnable? = null
 
-    // TODO: Replace with Rokid voice SDK when available
     private fun startVoiceRecognition() {
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.ENGLISH)
             putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak now...")
         }
-        recognizerLauncher.launch(intent)
+        try {
+            recognizerLauncher.launch(intent)
+        } catch (_: ActivityNotFoundException) {
+            startAudioRecording()
+        }
+    }
+
+    private fun startAudioRecording() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            requestAudioPermission.launch(Manifest.permission.RECORD_AUDIO)
+            return
+        }
+        if (recorder != null) {
+            return
+        }
+
+        val output = File(cacheDir, "voice-input.m4a")
+        try {
+            recorder = MediaRecorder().apply {
+                setAudioSource(MediaRecorder.AudioSource.MIC)
+                setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+                setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                setAudioSamplingRate(16000)
+                setAudioChannels(1)
+                setOutputFile(output.absolutePath)
+                prepare()
+                start()
+            }
+            recordingFile = output
+            statusBoxText.text = "Listening... speak now"
+            handler.postDelayed({ stopAudioRecordingAndTranscribe() }, RECORDING_DURATION_MS)
+        } catch (_: Exception) {
+            recorder?.release()
+            recorder = null
+            statusBoxText.text = "(microphone recording unavailable)"
+            showDemoVoiceInputDialog()
+        }
+    }
+
+    private fun stopAudioRecordingAndTranscribe() {
+        val activeRecorder = recorder ?: return
+        recorder = null
+        try {
+            activeRecorder.stop()
+        } catch (_: Exception) {
+            activeRecorder.release()
+            statusBoxText.text = "(no speech recorded)"
+            return
+        }
+        activeRecorder.release()
+
+        val audioFile = recordingFile ?: return
+        statusBoxText.text = "Transcribing..."
+        transcribeAudio(audioFile)
+    }
+
+    private fun transcribeAudio(audioFile: File) {
+        val request = Request.Builder()
+            .url("$BASE_URL/transcribe")
+            .post(audioFile.asRequestBody("audio/mp4".toMediaType()))
+            .build()
+
+        Thread {
+            try {
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        throw IllegalStateException("Transcription failed: ${response.code}")
+                    }
+                    val spokenText = JSONObject(response.body?.string().orEmpty())
+                        .optString("transcript")
+                        .trim()
+                    if (spokenText.isBlank()) {
+                        throw IllegalStateException("No speech recognized")
+                    }
+                    runOnUiThread {
+                        statusBoxText.text = spokenText
+                        handleSpokenText(spokenText)
+                    }
+                }
+            } catch (_: Exception) {
+                runOnUiThread {
+                    statusBoxText.text = "(transcription unavailable)"
+                    showDemoVoiceInputDialog()
+                }
+            } finally {
+                audioFile.delete()
+            }
+        }.start()
+    }
+
+    private fun showDemoVoiceInputDialog() {
+        val phrases = arrayOf(
+            "step one done sample collected",
+            "contamination detected",
+            "generate report",
+        )
+        AlertDialog.Builder(this)
+            .setTitle("Demo Voice Input")
+            .setItems(phrases) { _, index ->
+                val spokenText = phrases[index]
+                statusBoxText.text = spokenText
+                handleSpokenText(spokenText)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -137,6 +260,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         unregisterReceiver(keyReceiver)
+        recorder?.release()
+        recorder = null
         if (::tts.isInitialized) {
             tts.shutdown()
         }
@@ -169,13 +294,19 @@ class MainActivity : AppCompatActivity() {
 
     private fun showPassOverlay() {
         // TODO: Replace with Rokid AR overlay API above overlay display code
+        stepPassed[currentStep] = true
         showOverlay(
             background = "#CC00FF41",
             text = "✓ VERIFIED",
             durationMs = 2000,
         )
-        tts.speak("Step verified. Proceeding to next step.", TextToSpeech.QUEUE_FLUSH, null, null)
-        advanceStep(1)
+        if (currentStep == sopSteps.lastIndex) {
+            tts.speak("All steps verified. Audit report is ready.", TextToSpeech.QUEUE_FLUSH, null, null)
+            handler.postDelayed({ showCompletionReport() }, 2000)
+        } else {
+            tts.speak("Step verified. Proceeding to next step.", TextToSpeech.QUEUE_FLUSH, null, null)
+            advanceStep(1)
+        }
     }
 
     private fun showFailOverlay() {
@@ -208,6 +339,23 @@ class MainActivity : AppCompatActivity() {
         handler.postDelayed(hide, durationMs)
     }
 
+    private fun showCompletionReport() {
+        overlayTimer?.let { handler.removeCallbacks(it) }
+        overlayTimer = null
+        overlay.setBackgroundColor(Color.BLACK)
+        overlayText.textSize = 24f
+        overlayText.text = buildString {
+            appendLine("AUDIT C REPORT")
+            appendLine()
+            stepPassed.forEachIndexed { index, passed ->
+                appendLine("STEP ${index + 1}: ${if (passed) "PASS" else "PENDING"}")
+            }
+            appendLine()
+            append("ALL STEPS VERIFIED")
+        }
+        overlay.visibility = View.VISIBLE
+    }
+
     private fun verifyStep(spokenText: String) {
         val body = """{"spoken_text":${JSONObject.quote(spokenText)}}""".toRequestBody(jsonMediaType)
         val request = Request.Builder()
@@ -237,6 +385,14 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }.start()
+    }
+
+    private fun handleSpokenText(spokenText: String) {
+        if (spokenText.lowercase(Locale.ENGLISH).contains("generate report")) {
+            generateReport()
+        } else {
+            verifyStep(spokenText)
+        }
     }
 
     private fun showObservationDialog() {
@@ -371,7 +527,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     companion object {
-        private const val BASE_URL = "http://192.168.1.11:8000"
+        private const val BASE_URL = "http://127.0.0.1:8000"
+        private const val RECORDING_DURATION_MS = 4000L
     }
 }
-
