@@ -1,0 +1,32 @@
+[
+  {
+    "step_number": 2,
+    "observation": "Observed correct swab handling",
+    "timestamp": "2026-05-30T07:32:51.475239",
+    "flagged": true
+  },
+  {
+    "step_number": 1,
+    "observation": "step one done specimen ID 4521",
+    "timestamp": "2026-05-30T08:07:07.534390",
+    "flagged": false
+  },
+  {
+    "step_number": 1,
+    "observation": "sample volume looks correct",
+    "timestamp": "2026-05-30T08:14:18.095745",
+    "flagged": false
+  },
+  {
+    "step_number": 1,
+    "observation": "Pass",
+    "timestamp": "2026-05-30T10:05:51.923158",
+    "flagged": false
+  },
+  {
+    "step_number": 1,
+    "observation": "Contaminated",
+    "timestamp": "2026-05-30T10:06:02.941452",
+    "flagged": true
+  }
+]
