@@ -1,72 +1,72 @@
-# Rokid Glasses — Deploy & Mirror Guide
+# Rokid Glasses — デプロイ＆ミラーリングガイド
 
 &#x20;
 
-> For first-time users | Audit C Hackathon | May 30, 2026
+> 初めて使用する方向け | Audit C ハッカソン | 2026年5月30日
 
 ***
 
-## PART 1 — What You Need Before Starting
+## パート1 — 開始前に必要なもの
 
-### Hardware
+### ハードウェア
 
-- \[ ] Rokid Glasses device
-- \[ ] Rokid dev cable (NOT the charging cable — ask Rokid team for the data cable)
-- \[ ] Android phone with Hi Rokid App installed
-- \[ ] Mac laptop with Android Studio installed
+- \[ ] Rokid Glasses 本体
+- \[ ] Rokid 開発用ケーブル（充電ケーブルではありません — データ通信用ケーブルを Rokid チームに依頼してください）
+- \[ ] Hi Rokid App がインストールされた Android スマートフォン
+- \[ ] Android Studio がインストールされた Mac ノートパソコン
 
-### Software to install NOW
+### 今すぐインストールするソフトウェア
 
 ```
-# Install Android Studio if not installed
-# Download from: https://developer.android.com/studio
+# Android Studio が未インストールの場合はインストール
+# ダウンロード先: https://developer.android.com/studio
 
-# Install ADB tools (comes with Android Studio, or install separately)
+# ADB ツールをインストール（Android Studio に同梱されていますが、個別にインストールすることもできます）
 brew install android-platform-tools
 
-# Install scrcpy for screen mirroring
+# 画面ミラーリング用の scrcpy をインストール
 brew install scrcpy
 
-# Verify ADB works
+# ADB が動作することを確認
 adb version
 
 ```
 
 ***
 
-## PART 2 — First Time Glasses Setup
+## パート2 — Glasses の初回セットアップ
 
-### Step 1 — Pair glasses to your phone
+### ステップ1 — Glasses をスマートフォンとペアリングする
 
-1. Open **Hi Rokid App** on Android phone
-2. Tap **+** to add device
-3. Put on glasses — follow on-screen pairing instructions
-4. Connect glasses to same WiFi as your Mac laptop
-   - In Hi Rokid App → Settings → WiFi
-   - Connect to venue WiFi
+1. Android スマートフォンで **Hi Rokid App** を開く
+2. **+** をタップしてデバイスを追加する
+3. Glasses を装着し、画面に表示されるペアリング手順に従う
+4. Glasses を Mac ノートパソコンと同じ Wi-Fi に接続する
+   - Hi Rokid App → Settings → WiFi の順に進む
+   - 会場の Wi-Fi に接続する
 
-### Step 2 — Enable ADB on glasses
+### ステップ2 — Glasses で ADB を有効にする
 
-1. Open **Hi Rokid App** on Android phone
-2. Go to **Settings** → **Developer Options**
-3. Toggle **Enable ADB** → ON
-4. Glasses will show a confirmation prompt — accept it
+1. Android スマートフォンで **Hi Rokid App** を開く
+2. **Settings** → **Developer Options** の順に進む
+3. **Enable ADB** をオンに切り替える
+4. Glasses に確認メッセージが表示されたら許可する
 
-### Step 3 — Connect glasses to Mac via dev cable
+### ステップ3 — 開発用ケーブルで Glasses を Mac に接続する
 
-1. Use the **dev cable** (left temple data contacts)
-2. Plug into your Mac USB port
-3. On glasses — accept the "Allow USB debugging" prompt if it appears
+1. **開発用ケーブル**（左テンプルのデータ通信用接点）を使用する
+2. Mac の USB ポートに接続する
+3. Glasses に「Allow USB debugging」と表示された場合は許可する
 
-### Step 4 — Verify glasses appear in ADB
+### ステップ4 — Glasses が ADB に表示されることを確認する
 
 ```
-# Run this in Terminal
+# ターミナルで実行
 adb devices
 
 ```
 
-Expected output:
+想定される出力:
 
 ```
 List of devices attached
@@ -74,233 +74,244 @@ XXXXXXXX    device
 
 ```
 
-If you see your device listed → you are ready to deploy! ✅ If empty → check cable, check ADB enabled, try: `adb kill-server && adb start-server`
+デバイスが一覧に表示されたら、デプロイの準備は完了です。✅ 何も表示されない場合は、ケーブルと ADB が有効になっているかを確認し、`adb kill-server && adb start-server` を試してください。
 
 ***
 
-## PART 3 — Deploy Audit C App to Glasses
+## パート3 — Audit C アプリを Glasses にデプロイする
 
-### Step 1 — Open project in Android Studio
+### ステップ1 — Android Studio でプロジェクトを開く
 
-1. Open Android Studio
-2. File → Open → select `/Users/bellz_um/Desktop/Unbound/AuditC` (the Kotlin project TRAE built)
-3. Wait for Gradle sync to complete (may take 2-3 min first time)
+1. Android Studio を開く
+2. File → Open の順に進み、`/Users/mandokororyotaro/Desktop/trae/auditc/auditc-rokid-android`（Rokid 向け Kotlin プロジェクト）を選択する
+3. Gradle の同期が完了するまで待つ（初回は2〜3分かかる場合があります）
 
-### Step 2 — Fix common Gradle issues
+### ステップ2 — よくある Gradle の問題を修正する
 
-If Gradle sync fails:
-
-```
-# In TRAE Terminal
-cd /Users/bellz_um/Desktop/Unbound/AuditC
-./gradlew clean
-./gradlew build
+Gradle の同期に失敗した場合:
 
 ```
+# プロジェクトを開き直す場合
+cd /Users/mandokororyotaro/Desktop/trae/auditc/auditc-rokid-android
 
-Paste any errors into SOLO Coder to fix.
-
-### Step 3 — Select Rokid glasses as target device
-
-1. In Android Studio top bar — click the device dropdown
-2. You should see **Rokid Glasses** listed
-3. Select it
-
-If not listed:
+# Android Studio で File → Sync Project with Gradle Files を実行
 
 ```
-adb devices          # confirm glasses connected
+
+エラーを SOLO Coder に貼り付けて修正してください。
+
+### USB 接続のみでバックエンドと通信する場合
+
+Wi-Fi を使用しない場合は、アプリを起動する前に次のコマンドを実行する:
+
+```
+adb reverse tcp:8000 tcp:8000
+
+```
+
+Rokid 向けアプリの接続先は `http://127.0.0.1:8000` に設定済みです。
+
+### ステップ3 — 対象デバイスとして Rokid Glasses を選択する
+
+1. Android Studio 上部のバーにあるデバイスのドロップダウンをクリックする
+2. 一覧に **Rokid Glasses** が表示されることを確認する
+3. **Rokid Glasses** を選択する
+
+一覧に表示されない場合:
+
+```
+adb devices          # Glasses が接続されていることを確認
 adb kill-server
 adb start-server
-adb devices          # try again
+adb devices          # もう一度確認
 
 ```
 
-### Step 4 — Build and install
+### ステップ4 — ビルドしてインストールする
 
-1. Click the green ▶ **Run** button in Android Studio
-2. Android Studio will:
-   - Compile the Kotlin app
-   - Install the APK on glasses
-   - Launch the app automatically
-3. First build takes 3-5 minutes — subsequent builds are faster
+1. Android Studio の緑色の ▶ **Run** ボタンをクリックする
+2. Android Studio が以下の処理を行う:
+   - Kotlin アプリをコンパイルする
+   - APK を Glasses にインストールする
+   - アプリを自動的に起動する
+3. 初回のビルドには3〜5分かかります。2回目以降は短くなります
 
-### Step 5 — Verify app is running
+### ステップ5 — アプリが実行されていることを確認する
 
-- Put on glasses
-- You should see the Audit C dark interface
-- Header shows "AUDIT C | LAB QC"
+- Glasses を装着する
+- Audit C の暗色インターフェースが表示されることを確認する
+- ヘッダーに「AUDIT C | LAB QC」と表示される
 
-If app crashes:
+アプリがクラッシュする場合:
 
 ```
-# Check logs in real time
+# リアルタイムでログを確認
 adb logcat | grep -i "auditc\|error\|fatal"
 
 ```
 
-Paste crash log into SOLO Coder to fix.
+クラッシュログを SOLO Coder に貼り付けて修正してください。
 
 ***
 
-## PART 4 — Mirror Glasses Display to Mac (for demo presentation)
+## パート4 — Glasses の画面を Mac にミラーリングする（デモ発表用）
 
-This is how you show judges what's happening inside the glasses on your laptop screen.
+これは、Glasses 内で起きていることをノートパソコンの画面で審査員に見せるための手順です。
 
-### Method 1 — scrcpy (recommended, easiest)
+### 方法1 — scrcpy（推奨、最も簡単）
 
 ```
-# Make sure glasses connected via dev cable
-adb devices   # confirm device listed
+# Glasses が開発用ケーブルで接続されていることを確認
+adb devices   # デバイスが一覧に表示されることを確認
 
-# Mirror glasses screen to Mac
+# Glasses の画面を Mac にミラーリング
 scrcpy
 
-# Optional — with title and no controls
+# 任意 — タイトルを設定し、操作を無効化
 scrcpy --window-title "Audit C — Rokid Glasses View" --no-control
 
-# Optional — record the demo at the same time
+# 任意 — デモを同時に録画
 scrcpy --record demo.mp4
 
 ```
 
-A window will open on your Mac showing exactly what's displayed on the glasses in real time.
+Mac 上にウィンドウが開き、Glasses に表示されている内容がリアルタイムでそのまま映ります。
 
-### Method 2 — Android Studio screen mirror
+### 方法2 — Android Studio の画面ミラーリング
 
-1. In Android Studio → View → Tool Windows → Running Devices
-2. Select your glasses device
-3. Screen appears in the IDE panel
+1. Android Studio → View → Tool Windows → Running Devices の順に進む
+2. Glasses デバイスを選択する
+3. IDE のパネルに画面が表示される
 
-### For presentation
+### 発表時
 
-- Open scrcpy window on your Mac
-- Connect Mac to projector/screen via HDMI
-- Judges see the glasses AR display on the big screen
-- You wear the glasses and interact — they watch the mirror
+- Mac で scrcpy ウィンドウを開く
+- HDMI で Mac をプロジェクターまたはスクリーンに接続する
+- 審査員は大画面で Glasses の AR 表示を確認できる
+- 発表者が Glasses を装着して操作すると、審査員はミラーリング画面でその様子を確認できる
 
-**Tip:** Make scrcpy window large — fullscreen if possible. The 480×640 display will be clearly visible.
+**ヒント:** scrcpy のウィンドウを大きくし、可能であれば全画面表示にしてください。480×640 の画面が見やすく表示されます。
 
 ***
 
-## PART 5 — Demo Flow on the Day
+## パート5 — 当日のデモの流れ
 
-### Setup (do this 15 min before demo)
+### セットアップ（デモ開始15分前に実施）
 
 ```
-# Terminal 1 — start backend
+# ターミナル1 — バックエンドを起動
 cd /Users/bellz_um/Desktop/Unbound
 python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
-# Terminal 2 — connect glasses and start mirror
+# ターミナル2 — Glasses を接続してミラーリングを開始
 adb devices
 scrcpy --window-title "Audit C — Rokid Glasses View"
 
 ```
 
-### During demo
+### デモ中
 
-1. Projector shows: scrcpy window (glasses display)
-2. You wear glasses and speak — judges watch the big screen
-3. Say **"step one done"** → glasses show green VERIFIED ✓
-4. Say **"contamination detected"** → glasses show red WARNING ⚠
-5. Say **"generate report"** (or press long-press button) → report generated
-6. Show the PDF report on laptop as final slide
+1. プロジェクターに scrcpy ウィンドウ（Glasses の画面）を表示する
+2. Glasses を装着して話すと、審査員は大画面で表示を確認できる
+3. **「step one done」** と発話する → Glasses に緑色で VERIFIED ✓ と表示される
+4. **「contamination detected」** と発話する → Glasses に赤色で WARNING ⚠ と表示される
+5. **「generate report」** と発話する（または長押しボタンを押す）→ レポートが生成される
+6. 最後のスライドとして、ノートパソコンで PDF レポートを表示する
 
 ***
 
-## PART 6 — Troubleshooting Quick Reference
+## パート6 — トラブルシューティング早見表
 
-Problem
+問題
 
-Fix
+解決方法
 
-`adb devices` shows empty
+`adb devices` を実行しても何も表示されない
 
-Check cable is dev cable not charging cable
+充電用ケーブルではなく、開発用ケーブルを使用しているか確認する
 
-ADB not found
+ADB が見つからない
 
 `brew install android-platform-tools`
 
-Gradle sync fails
+Gradle の同期に失敗する
 
-Paste error into SOLO Coder
+エラーを SOLO Coder に貼り付ける
 
-App installs but crashes
+アプリはインストールされるがクラッシュする
 
-`adb logcat` → paste error into SOLO Coder
+`adb logcat` → エラーを SOLO Coder に貼り付ける
 
-scrcpy not found
+scrcpy が見つからない
 
 `brew install scrcpy`
 
-scrcpy shows black screen
+scrcpy の画面が真っ黒になる
 
-Unlock glasses display first
+先に Glasses の画面ロックを解除する
 
-Backend unreachable from glasses
+Glasses からバックエンドに接続できない
 
-Confirm same WiFi, check `adb shell ping 192.168.1.11`
+同じ Wi-Fi に接続されていることを確認し、`adb shell ping 192.168.1.11` を実行する
 
-Voice not recognized
+音声が認識されない
 
-Speak clearly, short commands, English
+短い英語のコマンドをはっきりと発話する
 
-TTS not speaking
+TTS の音声が流れない
 
-Check glasses volume — swipe right temple to adjust
+Glasses の音量を確認する。右テンプルをスワイプして調整する
 
 ***
 
-## PART 7 — Key Commands Cheatsheet
+## パート7 — 主要コマンド早見表
 
 ```
-# Check glasses connected
+# Glasses が接続されていることを確認
 adb devices
 
-# Install APK manually (if Android Studio not working)
+# APK を手動でインストール（Android Studio が動作しない場合）
 adb install app/build/outputs/apk/debug/app-debug.apk
 
-# Launch app manually
+# アプリを手動で起動
 adb shell am start -n com.auditc.glasses/.MainActivity
 
-# View live logs
+# リアルタイムログを表示
 adb logcat | grep AuditC
 
-# Mirror screen
+# 画面をミラーリング
 scrcpy
 
-# Mirror + record
+# ミラーリングしながら録画
 scrcpy --record demo.mp4
 
-# Restart app on glasses
+# Glasses 上のアプリを再起動
 adb shell am force-stop com.auditc.glasses
 adb shell am start -n com.auditc.glasses/.MainActivity
 
-# Check glasses WiFi IP (to verify same network as Mac)
+# Glasses の Wi-Fi IP を確認（Mac と同じネットワークであることを確認するため）
 adb shell ip addr show wlan0
 
 ```
 
 ***
 
-## PART 8 — If Glasses Don't Arrive in Time
+## パート8 — Glasses が間に合わない場合
 
-Fallback demo plan — show judges both:
+代替デモとして、以下の両方を審査員に見せます:
 
-1. **iPhone web demo** (already working) — show on laptop screen via Safari
-2. **Kotlin app** in Android Studio emulator — Run on AVD (Android Virtual Device)
-   - In Android Studio → Device Manager → Create Virtual Device
-   - Choose: Phone → Pixel 4 → API 29
-   - Run app on emulator — shows same UI as glasses
+1. **iPhone の Web デモ**（動作確認済み）— Safari を使用してノートパソコンの画面に表示する
+2. Android Studio のエミュレーターで動作する **Kotlin アプリ** — AVD（Android Virtual Device）で実行する
+   - Android Studio → Device Manager → Create Virtual Device の順に進む
+   - Phone → Pixel 4 → API 29 の順に選択する
+   - エミュレーターでアプリを実行する。Glasses と同じ UI が表示される
 
-Tell judges:
+審査員には次のように説明します:
 
-> "We've built and tested the full glasses app. Here's the emulator version — the identical APK deploys to Rokid glasses via ADB when the hardware is available."
+> 「Glasses 用アプリの全機能を実装し、テスト済みです。こちらはエミュレーター版です。ハードウェアが利用可能になれば、同一の APK を ADB 経由で Rokid Glasses にデプロイできます。」
 
-Judges understand hardware delays. The code quality matters more than the physical glasses.
+審査員はハードウェアの遅延を理解しています。物理的な Glasses よりもコードの品質が重要です。
 
 ***
 
-*Guide prepared for Audit C team | TRAE SOLO Hackathon Tokyo 2026*
+*Audit C チーム向けガイド | TRAE SOLO Hackathon Tokyo 2026*

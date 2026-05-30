@@ -1,10 +1,11 @@
-from fastapi import BackgroundTasks, FastAPI, HTTPException
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from datetime import datetime
 import json
 import os
 import requests
+import shutil
 import subprocess
 import tempfile
 from reportlab.lib import colors
@@ -24,6 +25,11 @@ app.add_middleware(
 MINIMAX_API_KEY = os.getenv("MINIMAX_API_KEY")
 MINIMAX_TTS_URL = "https://api.minimax.io/v1/t2a_v2"
 MINIMAX_TEXT_URL = "https://api.minimax.io/v1/text/chatcompletion_v2"
+WHISPER_CLI = os.getenv("WHISPER_CLI") or shutil.which("whisper-cli")
+WHISPER_MODEL = os.getenv(
+    "WHISPER_MODEL",
+    os.path.join(os.path.dirname(__file__), "models", "ggml-base.en.bin"),
+)
 SESSION_LOG_PATH = os.path.join(os.path.dirname(__file__), "session_log.json")
 REPORT_PDF_PATH = os.path.join(os.path.dirname(__file__), "pathguard_report.pdf")
 TEST_NAME = "COVID-19 PCR"
@@ -510,6 +516,73 @@ async def verify_step(request: VerifyRequest, background_tasks: BackgroundTasks)
     if MINIMAX_API_KEY:
         background_tasks.add_task(speak_alert, "Verified.")
     return response
+
+
+@app.post("/transcribe")
+async def transcribe_audio(request: Request):
+    whisper_cli = WHISPER_CLI or shutil.which("whisper-cli")
+    if not whisper_cli:
+        raise HTTPException(status_code=503, detail="whisper-cli is not installed")
+    if not os.path.exists(WHISPER_MODEL):
+        raise HTTPException(status_code=503, detail=f"Whisper model not found: {WHISPER_MODEL}")
+
+    audio_bytes = await request.body()
+    if not audio_bytes:
+        raise HTTPException(status_code=400, detail="Audio body is empty")
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        input_path = os.path.join(temp_dir, "voice.m4a")
+        wav_path = os.path.join(temp_dir, "voice.wav")
+        output_prefix = os.path.join(temp_dir, "transcript")
+
+        with open(input_path, "wb") as audio_file:
+            audio_file.write(audio_bytes)
+
+        try:
+            subprocess.run(
+                [
+                    "ffmpeg",
+                    "-loglevel", "error",
+                    "-y",
+                    "-i", input_path,
+                    "-ar", "16000",
+                    "-ac", "1",
+                    "-c:a", "pcm_s16le",
+                    wav_path,
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            subprocess.run(
+                [
+                    whisper_cli,
+                    "-m", WHISPER_MODEL,
+                    "-f", wav_path,
+                    "-l", "en",
+                    "--prompt", "step one done sample collected. contamination detected. generate report.",
+                    "-nt",
+                    "-otxt",
+                    "-of", output_prefix,
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=503, detail=f"Required command not found: {exc.filename}")
+        except subprocess.CalledProcessError as exc:
+            detail = exc.stderr.strip() or exc.stdout.strip() or "Transcription failed"
+            raise HTTPException(status_code=500, detail=detail)
+
+        transcript_path = f"{output_prefix}.txt"
+        with open(transcript_path, "r") as transcript_file:
+            transcript = transcript_file.read().strip()
+
+    if not transcript:
+        raise HTTPException(status_code=422, detail="No speech recognized")
+
+    return {"transcript": transcript}
 
 
 @app.post("/tts")
